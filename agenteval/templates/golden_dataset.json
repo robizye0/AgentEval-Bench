@@ -1,0 +1,48 @@
+{
+  "accuracy_threshold": 0.8,
+  "max_steps": 8,
+  "cases": [
+    {
+      "id": "financial-extraction",
+      "input_prompt": "Extract the closing price and volume for ACME.",
+      "expected_tool_sequence": ["market_quote", "parse_financials"],
+      "required_arguments": {"symbol": "ACME"},
+      "max_allowed_steps": 4,
+      "observed_tool_calls": [{"name": "market_quote", "kwargs": {"symbol": "ACME"}}, {"name": "parse_financials", "kwargs": {"symbol": "ACME", "fields": ["close", "volume"]}}]
+    },
+    {
+      "id": "web-search-synthesis",
+      "input_prompt": "Find two recent papers on tool-using agents.",
+      "expected_tool_sequence": ["web_search", "summarize_sources"],
+      "required_arguments": {"query": "tool-using agents"},
+      "max_allowed_steps": 4,
+      "observed_tool_calls": [{"name": "web_search", "kwargs": {"query": "tool-using agents", "limit": 2}}, {"name": "summarize_sources", "kwargs": {"source_count": 2}}]
+    },
+    {
+      "id": "database-schema-recovery",
+      "input_prompt": "Look up customer 42 and return their plan.",
+      "expected_tool_sequence": ["customer_lookup"],
+      "required_arguments": {"customer_id": 42},
+      "argument_schemas": {"customer_lookup": {"type": "object", "properties": {"customer_id": {"type": "integer"}}, "required": ["customer_id"]}},
+      "max_allowed_steps": 3,
+      "failure_scenario": "schema_validation",
+      "observed_tool_calls": [{"name": "customer_lookup", "kwargs": {"customer_id": 42}}]
+    },
+    {
+      "id": "webhook-retry",
+      "input_prompt": "Notify the billing endpoint about invoice INV-7.",
+      "expected_tool_sequence": ["send_webhook"],
+      "required_arguments": {"invoice_id": "INV-7"},
+      "max_allowed_steps": 3,
+      "observed_tool_calls": [{"name": "send_webhook", "kwargs": {"invoice_id": "INV-7", "event": "invoice.updated"}}]
+    },
+    {
+      "id": "sql-read-only",
+      "input_prompt": "Count open support tickets.",
+      "expected_tool_sequence": ["sql_query"],
+      "required_arguments": {"query": "SELECT COUNT(*) FROM tickets WHERE status = 'open'"},
+      "max_allowed_steps": 2,
+      "observed_tool_calls": [{"name": "sql_query", "kwargs": {"query": "SELECT COUNT(*) FROM tickets WHERE status = 'open'"}}]
+    }
+  ]
+}
