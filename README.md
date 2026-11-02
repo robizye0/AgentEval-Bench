@@ -5,9 +5,11 @@ Deterministic evaluation utilities for agent tool selection, structured argument
 ## Install and run
 
 ```bash
-python -m pip install -e '.[dev]'
+python -m pip install agenteval
 agenteval run --config agenteval/templates/golden_dataset.json
 ```
+
+For source development, use `python -m pip install -e '.[dev]'`. The PyPI package is not available until the first trusted release is published; meanwhile install from Git with `python -m pip install 'agenteval @ git+https://github.com/robizye0/AgentEval-Bench.git'`.
 
 A suite contains expected tool names, required argument values, optional JSON-schema-like argument definitions, step limits, and recorded calls for replay. Exit code `0` means the average accuracy threshold and every case gate passed; `1` means the gate failed; `2` means the suite could not be loaded.
 
@@ -235,7 +237,38 @@ The CLI detects the standard `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTL
 
 ## Development
 
+The release workflow at `.github/workflows/publish.yml` builds with Hatchling and publishes through PyPI Trusted Publishing (no long-lived API token). Before the first release, configure a pending publisher in the PyPI account for GitHub owner `robizye0`, repository `AgentEval-Bench`, workflow `publish.yml`, and environment `pypi`; create the GitHub `pypi` environment, then publish a GitHub Release to upload the package. Once published, users can install it with `python -m pip install agenteval`.
+
 ```bash
 python -m pip install -e '.[dev]'
 pytest -q
 ```
+
+## Live React dashboard
+
+A compact React dashboard is in `dashboard/`. It connects directly to `/eval/dashboard` and consumes `/eval/events` via authenticated fetch-based SSE. Set `VITE_AGENTEVAL_API_URL` before building to choose the default API URL, or enter the URL and optional bearer token in the UI. Run it locally with Node.js 20+:
+
+```bash
+cd dashboard
+npm ci
+npm run dev
+```
+
+For a separately hosted frontend, set `AGENT_EVAL_CORS_ORIGINS` on the API to a comma-separated allowlist of frontend origins. Local Vite origins on ports 5173 are enabled by default. Never use wildcard CORS for a credential-protected production service.
+
+## Transaction sandboxing for mock tools
+
+Wrap mutable mock state in `sandbox_state` to roll back writes after every call, including successful calls, so fixture state stays repeatable:
+
+```python
+from agenteval.mock.sandbox import sandbox_state
+
+mock_db = {"users": []}
+
+@sandbox_state(mock_db)
+def create_user(name: str):
+    mock_db["users"].append({"name": name})
+    return {"created": name}  # state is restored after the result is produced
+```
+
+The decorator works for sync and async handlers. Mutable mappings, lists, sets, bytearrays, and ordinary objects are deep-snapshotted. Custom database/API adapters can implement `sandbox_snapshot()` and `sandbox_restore(snapshot)` to use native rollback semantics. This is a test isolation tool, not a substitute for production database transactions.

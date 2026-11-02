@@ -10,6 +10,7 @@ from collections.abc import AsyncIterable, Iterable
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -50,6 +51,21 @@ def create_app(registry: ToolRegistry | None = None) -> FastAPI:
     tools = registry or ToolRegistry()
     ingestion = IngestionStore()
     app = FastAPI(title="AgentEval-Bench Mock Tool API", version="0.1.0")
+    origins = [
+        origin.strip()
+        for origin in os.getenv(
+            "AGENT_EVAL_CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173",
+        ).split(",")
+        if origin.strip()
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+        allow_credentials=False,
+    )
     app.state.tool_registry = tools
     app.state.eval_ingestion_store = ingestion
 
