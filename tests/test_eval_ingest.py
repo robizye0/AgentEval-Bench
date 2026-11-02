@@ -44,6 +44,7 @@ def test_remote_ingest_accumulates_steps_and_dashboard_exposes_final_status():
     assert second.json()["token_count"] == 10
     assert dashboard.json()["cases"][0]["status"] == "passed"
     assert dashboard.json()["cases"][0]["accuracy_score"] == 1.0
+    assert dashboard.json()["cases"][0]["result"]["passed"] is True
     assert "text/event-stream" in snapshot.headers["content-type"]
     assert "event: snapshot" in snapshot.text
     assert "remote-1" in snapshot.text
@@ -124,6 +125,25 @@ def test_event_idempotency_is_scoped_to_the_case():
     result_a, result_b = asyncio.run(scenario())
     assert result_a.json()["case_id"] == "case-a"
     assert result_b.json()["case_id"] == "case-b"
+
+
+def test_reused_event_id_with_different_payload_is_a_conflict():
+    async def scenario():
+        app = create_app(ToolRegistry())
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            original = ingest_event(0, ["search"], case_id="retry-case")
+            first = await client.post("/eval/ingest", json=original)
+            exact_retry = await client.post("/eval/ingest", json=original)
+            changed = {**original, "token_count": original["token_count"] + 1}
+            conflict = await client.post("/eval/ingest", json=changed)
+            return first, exact_retry, conflict
+
+    first, exact_retry, conflict = asyncio.run(scenario())
+    assert first.status_code == 200
+    assert exact_retry.status_code == 200
+    assert exact_retry.json() == first.json()
+    assert conflict.status_code == 409
 
 
 def test_live_sse_subscribers_receive_each_ingested_evaluation():

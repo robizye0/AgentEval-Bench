@@ -48,6 +48,13 @@ class IngestEvent(BaseModel):
             max_cost_usd=self.max_cost_usd,
         )
 
+    def event_signature(self) -> str:
+        return json.dumps(
+            self.model_dump(mode="json", exclude_unset=True),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+
     def config_signature(self) -> str:
         config = self.model_dump(
             exclude={
@@ -66,15 +73,19 @@ class IngestionConflict(ValueError):
 class IngestionStore:
     def __init__(self) -> None:
         self.records: dict[str, dict[str, Any]] = {}
-        self.processed: dict[tuple[str, str], dict[str, Any]] = {}
+        self.processed: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
         self.subscribers: dict[asyncio.Queue[dict[str, Any]], str | None] = {}
         self.lock = asyncio.Lock()
 
     async def ingest(self, event: IngestEvent) -> dict[str, Any]:
         async with self.lock:
             event_key = (event.case_id, event.event_id)
+            event_signature = event.event_signature()
             if event_key in self.processed:
-                return self.processed[event_key]
+                processed_signature, response = self.processed[event_key]
+                if event_signature != processed_signature:
+                    raise IngestionConflict("event_id was already used with a different payload")
+                return response
             record = self.records.get(event.case_id)
             if record is None:
                 if event.step_index != 0:
@@ -123,7 +134,7 @@ class IngestionStore:
                 "result": result.model_dump(mode="json"),
             }
             record["latest"] = response
-            self.processed[event_key] = response
+            self.processed[event_key] = (event_signature, response)
             self._publish(response, event.case_id)
             return response
 
@@ -164,6 +175,7 @@ class IngestionStore:
                     "step_count": len(record["steps"]),
                     "final": record["final"],
                     "passed": latest.get("result", {}).get("passed"),
+                    "result": latest.get("result"),
                     "accuracy_score": latest.get("result", {}).get(
                         "deterministic_accuracy_score",
                         latest.get("result", {}).get("tool_accuracy_score"),

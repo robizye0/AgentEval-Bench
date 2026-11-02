@@ -40,6 +40,26 @@ def test_sandbox_decorator_rolls_back_sync_and_async_mock_mutations():
     assert state == {"records": []}
 
 
+def test_sandbox_async_calls_serialize_shared_state():
+    state = {"rows": []}
+
+    @sandbox_state(state)
+    async def write_a():
+        state["rows"].append("a")
+        await asyncio.sleep(0)
+
+    @sandbox_state(state)
+    async def write_b():
+        state["rows"].append("b")
+        await asyncio.sleep(0)
+
+    async def run_concurrent():
+        await asyncio.gather(write_a(), write_b())
+
+    asyncio.run(run_concurrent())
+    assert state == {"rows": []}
+
+
 def test_sandbox_uses_explicit_snapshot_restore_protocol():
     class FakeDatabase:
         def __init__(self):
