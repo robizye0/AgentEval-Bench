@@ -1,6 +1,12 @@
 # AgentEval-Bench
 
-Deterministic evaluation utilities for agent tool selection, structured arguments, execution trajectories, and fault handling. Python 3.11+, Pydantic v2. The core library is framework-neutral: Pydantic AI, LangChain/LangGraph, and native OpenAI/Anthropic clients can adapt their traces to `TrajectoryStep` / `ToolCall` without introducing runtime dependencies on those frameworks.
+[![CI](https://github.com/robizye0/AgentEval-Bench/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/robizye0/AgentEval-Bench/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+> Open-source evaluation harness for agent tool selection, argument validation, trajectory quality, budgets, and fault handling—with a live telemetry dashboard.
+
+Python 3.11+, Pydantic v2. The core library is framework-neutral: Pydantic AI, LangChain/LangGraph, and native OpenAI/Anthropic clients can adapt their traces to `TrajectoryStep` / `ToolCall` without introducing runtime dependencies on those frameworks.
 
 ## Install and run
 
