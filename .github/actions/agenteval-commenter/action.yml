@@ -1,0 +1,42 @@
+name: AgentEval PR commenter
+description: Post or update a Markdown evaluation summary on the current pull request.
+inputs:
+  github-token:
+    description: "Token with pull-requests: write permission."
+    required: true
+  report-path:
+    description: Path to the current AgentEval JSON summary.
+    required: true
+  baseline-path:
+    description: Path to the main-branch JSON summary for regression comparison.
+    required: false
+    default: ''
+  token-regression-percent:
+    description: Alert when token usage increases by this percentage or more.
+    required: false
+    default: '20'
+  cost-regression-percent:
+    description: Alert when cost increases by this percentage or more.
+    required: false
+    default: '20'
+  latency-regression-percent:
+    description: Alert when latency increases by this percentage or more.
+    required: false
+    default: '20'
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v7
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+        REPORT_PATH: ${{ inputs.report-path }}
+        BASELINE_PATH: ${{ inputs.baseline-path }}
+        TOKEN_REGRESSION_PERCENT: ${{ inputs.token-regression-percent }}
+        COST_REGRESSION_PERCENT: ${{ inputs.cost-regression-percent }}
+        LATENCY_REGRESSION_PERCENT: ${{ inputs.latency-regression-percent }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const path = require('node:path');
+          const { run } = require(path.join(process.env.GITHUB_ACTION_PATH, 'comment.js'));
+          await run({ github, context, core, env: process.env });

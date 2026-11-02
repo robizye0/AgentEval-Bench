@@ -43,6 +43,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
                         input_state=prompt,
                         model_response="recorded",
                         tool_calls=recorded.observed_tool_calls,
+                        tool_responses=recorded.observed_tool_responses,
                         token_count=recorded.observed_token_count,
                         cost_usd=recorded.observed_cost_usd,
                         latency_ms=recorded.observed_latency_ms,

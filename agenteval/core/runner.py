@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, create_model
 
 from agenteval.core.schema import EvalResult, TestCase, TrajectoryStep
+from agenteval.evaluators.context_compactor import ContextCompactorEvaluator, ContextSegment
 from agenteval.evaluators.semantic_intent import SemanticIntentEvaluator
 from agenteval.evaluators.tool_accuracy import ToolAccuracyEvaluator
 from agenteval.evaluators.trajectory import TrajectoryEvaluator
@@ -18,13 +20,24 @@ AgentAdapter = Callable[[str], Awaitable[TrajectoryStep] | TrajectoryStep]
 
 
 def _model_from_schema(name: str, schema: dict[str, Any]) -> type[BaseModel]:
-    fields = {key: (Any, ...) for key in schema.get("required", [])}
+    required = set(schema.get("required", []))
+    fields: dict[str, Any] = {}
     props = schema.get("properties", {})
     types = {"string": str, "integer": int, "number": float, "boolean": bool}
     for key, spec in props.items():
         typ = types.get(spec.get("type"), Any)
-        fields.setdefault(key, (typ, ... if key in schema.get("required", []) else None))
+        fields[key] = (typ, ... if key in required else None)
+    for key in required:
+        fields.setdefault(key, (Any, ...))
     return create_model(name, __config__={"extra": "forbid"}, **fields)
+
+
+def build_argument_models(case: TestCase) -> dict[str, type[BaseModel]]:
+    """Build strict Pydantic models declared by an evaluation case."""
+    return {
+        name: _model_from_schema(name.title().replace("_", "") + "Args", schema)
+        for name, schema in case.argument_schemas.items()
+    }
 
 
 class EvaluationRunner:
@@ -82,10 +95,7 @@ class EvaluationRunner:
             )
             self._record_trace(result)
             return result
-        schemas = {
-            name: _model_from_schema(name.title().replace("_", "") + "Args", schema)
-            for name, schema in case.argument_schemas.items()
-        }
+        schemas = build_argument_models(case)
         accuracy = ToolAccuracyEvaluator().evaluate(case, step.tool_calls, schemas)
         trajectory = TrajectoryEvaluator().evaluate(
             step.tool_calls,
@@ -107,6 +117,21 @@ class EvaluationRunner:
             budget_violations.append(
                 f"cost budget exceeded: {step.cost_usd:.6f} > {case.max_cost_usd:.6f} USD"
             )
+        compaction_suggestions: list[dict[str, Any]] = []
+        if budget_violations:
+            segments = [
+                ContextSegment(kind="prompt_history", name="input prompt/history", content=step.input_state)
+            ]
+            for index, response in enumerate(step.tool_responses):
+                text = response if isinstance(response, str) else json.dumps(response, ensure_ascii=False, default=str)
+                name = step.tool_calls[index].name if index < len(step.tool_calls) else f"tool_response_{index}"
+                segments.append(ContextSegment(kind="tool_response", name=name, content=text))
+            if step.model_response:
+                segments.append(
+                    ContextSegment(kind="prompt_history", name="model response", content=step.model_response)
+                )
+            compaction = ContextCompactorEvaluator().analyze(segments, budget_breached=True)
+            compaction_suggestions = [item.model_dump() for item in compaction.suggestions]
         semantic_score: float | None = None
         semantic_rationale: str | None = None
         if self.semantic_judge is not None:
@@ -156,6 +181,7 @@ class EvaluationRunner:
                 "latency_ms": step.latency_ms or sum(call.latency_ms for call in step.tool_calls),
                 "argument_errors": accuracy.argument_errors,
                 "budget_violations": budget_violations,
+                "compaction_suggestions": compaction_suggestions,
                 "semantic_rationale": semantic_rationale,
             },
         )

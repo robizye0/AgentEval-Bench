@@ -64,6 +64,9 @@ class TestCase(StrictModel):
     expected_output: Any | None = None
     failure_scenario: str | None = None
     observed_tool_calls: list[ToolCall] = Field(default_factory=list)
+    observed_tool_responses: list[Any] = Field(default_factory=list)
+    observed_semantic_score: float | None = Field(default=None, ge=0, le=1)
+    observed_semantic_rationale: str | None = None
     observed_token_count: int = Field(default=0, ge=0)
     observed_cost_usd: float = Field(default=0, ge=0)
     observed_latency_ms: float = Field(default=0, ge=0)
