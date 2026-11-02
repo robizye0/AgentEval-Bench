@@ -33,15 +33,25 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     path = Path(session.config.getoption("--agent-eval-config"))
     try:
         suite = EvaluationSuite.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
-        by_prompt = {case.input_prompt: case for case in suite.cases}
 
-        def replay(prompt: str) -> TrajectoryStep:
-            case = by_prompt[prompt]
-            return TrajectoryStep(
-                input_state=prompt, model_response="recorded", tool_calls=case.observed_tool_calls
-            )
+        async def evaluate_cases():
+            results = []
+            for case in suite.cases:
 
-        results = asyncio.run(EvaluationRunner(replay).run(suite.cases))
+                def replay(prompt: str, recorded=case) -> TrajectoryStep:
+                    return TrajectoryStep(
+                        input_state=prompt,
+                        model_response="recorded",
+                        tool_calls=recorded.observed_tool_calls,
+                        token_count=recorded.observed_token_count,
+                        cost_usd=recorded.observed_cost_usd,
+                        latency_ms=recorded.observed_latency_ms,
+                    )
+
+                results.append(await EvaluationRunner(replay).run_case(case))
+            return results
+
+        results = asyncio.run(evaluate_cases())
         accuracy = sum(result.tool_accuracy_score for result in results) / max(len(results), 1)
         threshold = session.config.getoption("--accuracy-threshold")
         if threshold is None:

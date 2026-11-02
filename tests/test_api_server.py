@@ -27,7 +27,7 @@ def test_mock_api_lists_and_executes_registered_tool():
     assert response.json() == {"ok": True, "result": {"key": "a"}}
 
 
-def test_mock_api_surfaces_injected_fault_as_service_unavailable():
+def test_mock_api_maps_injected_http_500_to_server_error():
     registry = ToolRegistry()
     registry.register("lookup", lambda: "ok")
     response = request(
@@ -36,4 +36,22 @@ def test_mock_api_surfaces_injected_fault_as_service_unavailable():
         create_app(registry),
         json={"arguments": {}, "failure": "http_500"},
     )
-    assert response.status_code == 503
+    assert response.status_code == 500
+
+
+def test_mock_api_injects_rate_limit_and_malformed_json():
+    registry = ToolRegistry()
+    registry.register("lookup", lambda: "ok")
+    app = create_app(registry)
+    limited = request("POST", "/tools/lookup", app, json={"arguments": {}, "failure": "rate_limit"})
+    malformed = request(
+        "POST", "/tools/lookup", app, json={"arguments": {}, "failure": "malformed_json"}
+    )
+    assert limited.status_code == 429
+    assert malformed.status_code == 200
+    try:
+        malformed.json()
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("malformed_json scenario returned valid JSON")

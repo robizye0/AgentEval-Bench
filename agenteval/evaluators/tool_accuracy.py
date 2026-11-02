@@ -10,6 +10,9 @@ from agenteval.core.schema import TestCase, ToolCall
 class ToolAccuracyResult(BaseModel):
     score: float
     schema_errors: list[str]
+    argument_errors: list[str]
+    argument_mismatch_fields: list[str]
+    schema_valid: bool
     expected: list[str]
     actual: list[str]
 
@@ -23,7 +26,9 @@ class ToolAccuracyEvaluator:
     ) -> ToolAccuracyResult:
         schemas = schemas or {}
         expected, actual = case.expected_tool_sequence, [call.name for call in calls]
-        errors: list[str] = []
+        schema_errors: list[str] = []
+        argument_errors: list[str] = []
+        argument_mismatch_fields: set[str] = set()
         matched = sum(
             1 for i, name in enumerate(actual) if i < len(expected) and name == expected[i]
         )
@@ -36,23 +41,32 @@ class ToolAccuracyEvaluator:
                 if schema:
                     unknown = set(call.kwargs) - set(schema.model_fields)
                     if unknown:
-                        errors.append(
+                        schema_errors.append(
                             f"{call.name}: unexpected arguments: {', '.join(sorted(unknown))}"
                         )
                         continue
                     schema.model_validate(call.kwargs)
             except ValidationError as exc:
-                errors.extend(f"{call.name}: {e['loc']}: {e['msg']}" for e in exc.errors())
+                schema_errors.extend(f"{call.name}: {e['loc']}: {e['msg']}" for e in exc.errors())
                 continue
             required = case.required_arguments if index == 0 and call.name in expected else {}
-            if any(call.kwargs.get(key) != value for key, value in required.items()):
-                errors.append(f"{call.name}: required arguments do not match expected values")
+            mismatched_fields = [
+                key for key, value in required.items() if call.kwargs.get(key) != value
+            ]
+            if mismatched_fields:
+                argument_mismatch_fields.update(mismatched_fields)
+                argument_errors.append(
+                    f"{call.name}: required arguments differ for {', '.join(sorted(mismatched_fields))}"
+                )
                 continue
             valid += 1
         payload_score = valid / max(len(calls), 1) if calls else (1.0 if not expected else 0.0)
         return ToolAccuracyResult(
             score=max(0.0, min(1.0, sequence_score * payload_score)),
-            schema_errors=errors,
+            schema_errors=schema_errors,
+            argument_errors=argument_errors,
+            argument_mismatch_fields=sorted(argument_mismatch_fields),
+            schema_valid=not schema_errors,
             expected=expected,
             actual=actual,
         )

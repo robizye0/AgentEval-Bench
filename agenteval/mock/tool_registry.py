@@ -32,13 +32,25 @@ class ToolRegistry:
         delay: float = 0,
         failure: str | None = None,
         timeout: float | None = None,
+        jitter_ms: int = 0,
+        spike_probability: float = 0,
+        latency_spike_ms: float = 3000,
+        random_seed: int = 0,
     ) -> Any:
         if name not in self._tools:
             raise KeyError(f"unknown tool: {name}")
 
         async def execute() -> Any:
-            if delay:
-                await asyncio.sleep(delay)
+            if delay or jitter_ms or spike_probability:
+                from agenteval.evaluators.resilience import ResilienceEvaluator
+
+                await ResilienceEvaluator.inject_latency(
+                    base_latency_ms=delay * 1000,
+                    jitter_ms=jitter_ms,
+                    spike_probability=spike_probability,
+                    spike_latency_ms=latency_spike_ms,
+                    seed=random_seed,
+                )
             if failure:
                 from agenteval.evaluators.resilience import ResilienceEvaluator
 
