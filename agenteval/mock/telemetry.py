@@ -164,6 +164,10 @@ class IngestionStore:
                     "step_count": len(record["steps"]),
                     "final": record["final"],
                     "passed": latest.get("result", {}).get("passed"),
+                    "accuracy_score": latest.get("result", {}).get(
+                        "deterministic_accuracy_score",
+                        latest.get("result", {}).get("tool_accuracy_score"),
+                    ),
                     "token_count": latest.get("token_count", 0),
                     "cost_usd": latest.get("cost_usd", 0),
                     "latency_ms": latest.get("latency_ms", 0),

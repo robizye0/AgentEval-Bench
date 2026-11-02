@@ -43,6 +43,7 @@ def test_remote_ingest_accumulates_steps_and_dashboard_exposes_final_status():
     assert second.json()["result"]["passed"] is True
     assert second.json()["token_count"] == 10
     assert dashboard.json()["cases"][0]["status"] == "passed"
+    assert dashboard.json()["cases"][0]["accuracy_score"] == 1.0
     assert "text/event-stream" in snapshot.headers["content-type"]
     assert "event: snapshot" in snapshot.text
     assert "remote-1" in snapshot.text

@@ -130,7 +130,7 @@ function App() {
           <td><Status item={item} /></td><td className="mono">{item.step_count ?? 0}<span className="unit"> steps</span></td>
           <td className="mono">{(item.token_count || 0).toLocaleString()}</td><td className="mono">${(item.cost_usd || 0).toFixed(4)}</td>
           <td className="mono">{Math.round(item.latency_ms || 0)}<span className="unit"> ms</span></td>
-          <td><div className="quality"><span><i style={{ width: `${Math.max(0, Math.min(100, (item.result?.tool_accuracy_score || 0) * 100))}%` }} /></span><b>{item.result ? `${Math.round((item.result.tool_accuracy_score || 0) * 100)}%` : '—'}</b></div></td><td className="chevron">{selected === item.case_id ? '−' : '+'}</td>
+          <td><div className="quality"><span><i style={{ width: `${Math.max(0, Math.min(100, (item.accuracy_score ?? item.result?.deterministic_accuracy_score ?? item.result?.tool_accuracy_score ?? 0) * 100))}%` }} /></span><b>{item.accuracy_score != null || item.result ? `${Math.round((item.accuracy_score ?? item.result?.deterministic_accuracy_score ?? item.result?.tool_accuracy_score ?? 0) * 100)}%` : '—'}</b></div></td><td className="chevron">{selected === item.case_id ? '−' : '+'}</td>
         </tr>)}
         {!total && <tr><td colSpan="8" className="empty"><div className="empty-mark">◌</div><strong>No trajectories yet</strong><span>Start sending events to <code>/eval/ingest</code> to see live activity here.</span></td></tr>}
         </tbody></table></div>
